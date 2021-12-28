@@ -1,0 +1,49 @@
+version: '2.2'
+services:
+# NGINX AND CERTS
+  certbot:
+    image: certbot/certbot
+    restart: unless-stopped
+    volumes:
+      - ./data/certbot/conf:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+  services-nginx:
+    environment:
+      - SERVICES_PREFIX=${SERVICES_PREFIX:?}
+      - SERVICES_DNS_SUFFIX=${DNS_SUFFIX:?}
+    container_name: services-nginx
+    image: nginx
+#    ports:
+#      - '443:443'
+#      - '80:80'
+    ulimits:
+      nproc: 10240
+      nofile:
+        soft: 10240
+        hard: 10240
+    volumes:
+      - './config/nginx.conf:/etc/nginx/nginx.conf'
+      - './data/certbot/conf:/etc/letsencrypt'
+      - './config/static:/etc/nginx/static'
+      - './certs:/etc/nginx/certs'
+      - './config/services-nginx-config:/etc/nginx/templates'
+      - './logs/bouncer-nginx:/var/log/nginx'
+      - './data/certbot/www:/var/www/certbot'
+    networks:
+      - governify-services
+    
+# SERVICES ======================================================
+  
+  governify-designer-minizinc:
+    container_name: governify-designer-minizinc
+    image: isagroup/governify-designer-modules-minizinc
+    environment:
+      - NODE_ENV=production
+      - PORT=80
+    networks:
+      - governify-services
+      
+networks:
+  governify-services:
+    external: true
